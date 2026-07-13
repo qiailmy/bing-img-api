@@ -1,0 +1,102 @@
+<?php
+/**
+ * Bing 每日壁纸 - 自适应直出接口 auto.php
+ * 功能：智能识别设备，直接输出图片流（不跳转）
+ * PC端：1920x1080 横屏
+ * 移动端：1080x1920 竖屏
+ * 参数：idx=偏移天数, w=宽度, h=高度, mkt=地区
+ */
+
+// 获取参数
+$idx = isset($_GET['idx']) ? max(0, min(7, intval($_GET['idx']))) : 0;
+$mkt = isset($_GET['mkt']) ? $_GET['mkt'] : 'zh-CN';
+
+// 检测设备类型
+$is_mobile = is_mobile_device();
+
+// 默认尺寸
+$default_w = $is_mobile ? 1080 : 1920;
+$default_h = $is_mobile ? 1920 : 1080;
+$w = isset($_GET['w']) ? intval($_GET['w']) : $default_w;
+$h = isset($_GET['h']) ? intval($_GET['h']) : $default_h;
+
+// Bing 壁纸 API 地址
+$bing_api = "https://www.bing.com/HPImageArchive.aspx?format=js&idx={$idx}&n=1&mkt={$mkt}";
+
+// 请求获取壁纸信息
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $bing_api);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0');
+$response = curl_exec($ch);
+$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+// 构建图片URL
+$image_url = '';
+if ($http_code == 200 && $response) {
+    $data = json_decode($response, true);
+    if (!empty($data['images'][0]['urlbase'])) {
+        $urlbase = $data['images'][0]['urlbase'];
+        $standard_sizes = ['1920x1080', '1080x1920', '1366x768', '800x480'];
+        $size = "{$w}x{$h}";
+        if (in_array($size, $standard_sizes)) {
+            $image_url = "https://www.bing.com{$urlbase}_{$size}.jpg";
+        } else {
+            $image_url = "https://www.bing.com{$urlbase}_UHD.jpg&w={$w}&h={$h}&rs=1&c=4";
+        }
+    }
+}
+
+// 备用图
+if (!$image_url) {
+    $image_url = $is_mobile
+        ? 'https://www.bing.com/th?id=OHR.SnowyMountains_ZH-CN9869777329_1080x1920.jpg'
+        : 'https://www.bing.com/th?id=OHR.SnowyMountains_ZH-CN9869777329_1920x1080.jpg';
+}
+
+// 直接输出图片
+$img_ch = curl_init();
+curl_setopt($img_ch, CURLOPT_URL, $image_url);
+curl_setopt($img_ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($img_ch, CURLOPT_TIMEOUT, 15);
+curl_setopt($img_ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($img_ch, CURLOPT_SSL_VERIFYHOST, false);
+curl_setopt($img_ch, CURLOPT_FOLLOWLOCATION, true);
+curl_setopt($img_ch, CURLOPT_USERAGENT, 'Mozilla/5.0');
+$image_data = curl_exec($img_ch);
+$img_http_code = curl_getinfo($img_ch, CURLINFO_HTTP_CODE);
+$content_type = curl_getinfo($img_ch, CURLINFO_CONTENT_TYPE);
+curl_close($img_ch);
+
+if ($img_http_code == 200 && $image_data) {
+    header('Content-Type: ' . ($content_type ?: 'image/jpeg'));
+    header('Cache-Control: public, max-age=3600');
+    echo $image_data;
+} else {
+    header('HTTP/1.1 500 Internal Server Error');
+    echo 'Failed to load image';
+}
+exit;
+
+/**
+ * 检测是否为移动设备
+ */
+function is_mobile_device() {
+    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    $mobile_keywords = [
+        'Mobile', 'Android', 'iPhone', 'iPad', 'iPod',
+        'BlackBerry', 'Opera Mini', 'IEMobile', 'Windows Phone',
+        'webOS', 'Symbian', 'Kindle', 'Silk', 'Bada'
+    ];
+    foreach ($mobile_keywords as $keyword) {
+        if (stripos($user_agent, $keyword) !== false) {
+            return true;
+        }
+    }
+    return false;
+}

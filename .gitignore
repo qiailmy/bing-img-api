@@ -1,0 +1,19 @@
+# Runtime/generated data
+bing-img/
+bing-wallpapers-cache.json
+*.log
+*.tmp.*
+
+# Backups and archives
+*.bak-*
+*.zip
+*.tar
+*.tar.gz
+
+# Local/editor files
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/
