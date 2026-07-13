@@ -54,7 +54,6 @@ bing-wallpapers-cache.json # 首页使用的 Bing 数据缓存
 upload_bing.log            # 定时下载日志
 ```
 
-这些运行时文件已经写入 `.gitignore`，不会提交到 GitHub。
 
 ## 部署方法
 
