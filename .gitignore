@@ -11,6 +11,8 @@ bing-wallpapers-cache.json
 *.tar.gz
 
 # Local/editor files
+node_modules/
+.wrangler/
 .env
 .env.*
 !.env.example
