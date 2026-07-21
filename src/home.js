@@ -558,8 +558,35 @@ export function renderHome(sourceImages) {
             -webkit-backdrop-filter: blur(22px) saturate(130%);
             box-shadow: 0 16px 42px rgba(69,91,145,.09), inset 0 1px 0 rgba(255,255,255,.85);
         }
-        .visit-counter { margin: .7rem auto; }
-        .visit-counter img { filter: drop-shadow(0 8px 15px rgba(69,91,145,.13)); }
+        .service-badges {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin: .7rem auto;
+        }
+        .service-badges img { display: block; filter: drop-shadow(0 8px 15px rgba(69,91,145,.13)); }
+        .workers-usage-card {
+            display: inline-flex;
+            align-items: center;
+            height: 20px;
+            overflow: hidden;
+            border-radius: 3px;
+            color: #fff;
+            font: 11px/20px Arial, sans-serif;
+            text-decoration: none;
+            box-shadow: 0 8px 15px rgba(69,91,145,.13);
+        }
+        .workers-usage-card span { padding: 0 5px; background: #555; }
+        .workers-usage-card strong {
+            min-width: 32px;
+            padding: 0 5px;
+            background: #f38020;
+            text-align: center;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
         .site-footer { border-color: rgba(100,119,160,.12); color: #8b96a8; }
 
         /* ==================== 响应式适配 ==================== */
@@ -757,9 +784,13 @@ ${weeklyItems}
 
         <!-- 服务标识 -->
         <div class="footer-showcase">
-            <div class="visit-counter">
+            <div class="service-badges">
                 <a href="https://www.cloudflare.com/zh-cn/application-services/products/cdn/" title="CDN: Cloudflare CDN" target="_blank" rel="noopener noreferrer">
                     <img src="https://img.wuw.li/tu/2025-09-13T00-56a1t.svg" alt="CDN: Cloudflare CDN">
+                </a>
+                <a id="workers-usage-card" class="workers-usage-card" href="https://worker.wuw.li/" title="Workers 今日请求量（UTC）" target="_blank" rel="noopener noreferrer">
+                    <span>Workers</span>
+                    <strong id="workers-usage-value">加载中</strong>
                 </a>
             </div>
         </div>
@@ -771,6 +802,46 @@ ${weeklyItems}
     </div>
 
     <script>
+        // ========== Workers 今日请求量 ==========
+        (function () {
+            var card = document.getElementById('workers-usage-card');
+            var value = document.getElementById('workers-usage-value');
+            if (!card || !value) return;
+
+            function shortNumber(number) {
+                if (number >= 1000000) return (number / 1000000).toFixed(1).replace('.0', '') + 'M';
+                if (number >= 1000) return (number / 1000).toFixed(1).replace('.0', '') + 'K';
+                return String(number);
+            }
+
+            var request = new XMLHttpRequest();
+            request.open('GET', 'https://worker.wuw.li/api/usage', true);
+            request.onreadystatechange = function () {
+                if (request.readyState !== 4) return;
+                if (request.status < 200 || request.status >= 300) {
+                    value.textContent = '--';
+                    card.title = 'Workers 请求量暂不可用';
+                    return;
+                }
+                try {
+                    var data = JSON.parse(request.responseText);
+                    var requests = data.usage.requests;
+                    var requestPercent = data.usage.requestPercent;
+                    var percentText = Number(requestPercent).toFixed(1).replace('.0', '') + '%';
+                    value.textContent = shortNumber(requests) + ' ' + percentText;
+                    card.title = 'Workers 今日请求量（UTC）：' + requests.toLocaleString('zh-CN') + '，使用率：' + percentText;
+                } catch (error) {
+                    value.textContent = '--';
+                    card.title = 'Workers 请求量暂不可用';
+                }
+            };
+            request.onerror = function () {
+                value.textContent = '--';
+                card.title = 'Workers 请求量暂不可用';
+            };
+            request.send();
+        })();
+
         // ========== 复制功能（兼容方案） ==========
         function copyCode(btn) {
             var codeEl = btn.parentElement.querySelector('code');

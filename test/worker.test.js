@@ -34,6 +34,9 @@ test("homepage preserves the complete original PHP template markers", async () =
     "尺寸接口",
     "参数用法",
     "CDN: Cloudflare CDN",
+    "workers-usage-card",
+    "https://worker.wuw.li/api/usage",
+    "Workers 今日请求量（UTC）",
     "wallpaperData",
     "copyCode",
   ]) assert.ok(html.includes(marker), `missing homepage marker: ${marker}`);
