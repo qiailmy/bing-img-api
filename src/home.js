@@ -755,11 +755,8 @@ ${weeklyItems}
             </div>
         </div>
 
-        <!-- 访问计数与服务标识 -->
+        <!-- 服务标识 -->
         <div class="footer-showcase">
-            <div class="visit-counter">
-                <img src="https://moe-counter.wuw.li/@bing-img?name=bing-img&amp;theme=moebooru&amp;padding=7&amp;offset=0&amp;align=top&amp;scale=1&amp;pixelated=1&amp;darkmode=auto" alt="bing-img 访问计数">
-            </div>
             <div class="visit-counter">
                 <a href="https://www.cloudflare.com/zh-cn/application-services/products/cdn/" title="CDN: Cloudflare CDN" target="_blank" rel="noopener noreferrer">
                     <img src="https://img.wuw.li/tu/2025-09-13T00-56a1t.svg" alt="CDN: Cloudflare CDN">

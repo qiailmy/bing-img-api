@@ -33,12 +33,13 @@ test("homepage preserves the complete original PHP template markers", async () =
     "推荐接口",
     "尺寸接口",
     "参数用法",
-    "moe-counter.wuw.li",
     "CDN: Cloudflare CDN",
     "wallpaperData",
     "copyCode",
   ]) assert.ok(html.includes(marker), `missing homepage marker: ${marker}`);
   assert.ok(!html.includes("<?php"));
+  assert.ok(!html.includes("moe-counter.wuw.li"));
+  assert.ok(!html.includes("bing-img 访问计数"));
   assert.match(html, /https:\/\/bing-img\.wuw\.li\/auto_302\.php/);
   assert.match(html, /https:\/\/bing-img\.wuw\.li\/download\.php\?url=/);
   assert.match(html, /20260721 \| Copyright/);
