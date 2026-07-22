@@ -5,7 +5,6 @@ const BING_ORIGIN = "https://www.bing.com";
 const DEFAULT_MKT = "zh-CN";
 const API_CACHE_SECONDS = 3600;
 const R2_PREFIX = "bing-img/";
-const R2_PUBLIC_ORIGIN = "https://img.wuw.li";
 const PUBLIC_ORIGIN = "https://bing-img.wuw.li";
 const STANDARD_SIZES = new Set(["1920x1080", "1080x1920", "1366x768", "800x480", "400x240"]);
 const MOBILE_UA = /Mobile|Android|iPhone|iPad|iPod|BlackBerry|Opera Mini|IEMobile|Windows Phone|webOS|Symbian|Kindle|Silk|Bada/i;
@@ -184,7 +183,8 @@ async function handleRandom(request, env, ctx) {
       const objects = listed.objects.filter((object) => pattern.test(object.key) && object.size > 10000);
       if (objects.length) {
         const selected = objects[randomIndex(objects.length)];
-        return redirect(`${R2_PUBLIC_ORIGIN}/${selected.key.split("/").map(encodeURIComponent).join("/")}`, "no-store");
+        const key = selected.key.split("/").map(encodeURIComponent).join("/");
+        return redirect(`${new URL(request.url).origin}/${key}`, "no-store");
       }
     } catch (error) {
       console.error(JSON.stringify({ event: "r2_random_error", message: String(error) }));
@@ -192,6 +192,24 @@ async function handleRandom(request, env, ctx) {
   }
   const current = await currentImage(request, ctx, mobile ? 1080 : 1920, mobile ? 1920 : 1080);
   return redirect(current.url, "no-store");
+}
+
+async function handleStoredImage(path, env) {
+  if (!env.BING_IMAGES) return new Response("Not Found", { status: 404 });
+  let key;
+  try {
+    key = decodeURIComponent(path.slice(1));
+  } catch {
+    return new Response("Bad Request", { status: 400 });
+  }
+  if (!/^bing-img\/\d{4}-\d{2}-\d{2}(?:-mobile)?\.jpg$/.test(key)) return new Response("Not Found", { status: 404 });
+  const object = await env.BING_IMAGES.get(key);
+  if (!object) return new Response("Not Found", { status: 404 });
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("ETag", object.httpEtag);
+  headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  return new Response(object.body, { headers });
 }
 
 async function saveDailyImages(env, ctx) {
@@ -267,7 +285,7 @@ export async function route(request, env = {}, ctx) {
     case "/func.php": response = await handleInfo(request, ctx); break;
     case "/download.php": response = await handleDownload(request); break;
     case "/random.php": response = await handleRandom(request, env, ctx); break;
-    default: response = new Response("Not Found", { status: 404 });
+    default: response = path.startsWith(`/${R2_PREFIX}`) ? await handleStoredImage(path, env) : new Response("Not Found", { status: 404 });
   }
   if (request.method === "HEAD") return new Response(null, { status: response.status, statusText: response.statusText, headers: response.headers });
   return response;

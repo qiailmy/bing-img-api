@@ -3,6 +3,9 @@
   "name": "bing-img-api",
   "main": "src/index.js",
   "workers_dev": true,
+  "routes": [
+    { "pattern": "bing-img.wuw.li", "custom_domain": true }
+  ],
   "compatibility_date": "2026-07-21",
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
@@ -13,6 +16,6 @@
     { "binding": "BING_IMAGES", "bucket_name": "ailmy" }
   ],
   "triggers": {
-    "crons": ["0 22 * * *"]
+    "crons": ["0 17 * * *"]
   }
 }

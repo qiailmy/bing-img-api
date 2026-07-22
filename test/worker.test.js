@@ -78,14 +78,32 @@ test("download.php rejects non-Bing hosts", async () => {
   assert.equal(response.status, 400);
 });
 
-test("random.php redirects to the public R2 domain and scopes listing to bing-img", async () => {
+test("random.php redirects to the Worker-hosted R2 object and scopes listing to bing-img", async () => {
   let prefix;
   const env = { BING_IMAGES: { async list(options) { prefix = options.prefix; return { objects: [{ key: "bing-img/2026-07-20.jpg", size: 3752109 }] }; } } };
   const response = await route(new Request("https://example.test/random.php"), env, context());
   assert.equal(prefix, "bing-img/");
   assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "https://img.wuw.li/bing-img/2026-07-20.jpg");
+  assert.equal(response.headers.get("location"), "https://example.test/bing-img/2026-07-20.jpg");
   assert.equal(response.headers.get("cache-control"), "no-store");
+});
+
+test("stored R2 images are served through the Worker", async () => {
+  const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+  const env = { BING_IMAGES: { async get(key) {
+    assert.equal(key, "bing-img/2026-07-20.jpg");
+    return {
+      body: bytes,
+      httpEtag: '"test-etag"',
+      writeHttpMetadata(headers) { headers.set("Content-Type", "image/jpeg"); },
+    };
+  } } };
+  const response = await route(new Request("https://example.test/bing-img/2026-07-20.jpg"), env, context());
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "image/jpeg");
+  assert.equal(response.headers.get("etag"), '"test-etag"');
+  assert.equal(response.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.deepEqual(new Uint8Array(await response.arrayBuffer()), bytes);
 });
 
 test("random.php redirects to current Bing image when R2 is absent or empty", async () => {

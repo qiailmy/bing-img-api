@@ -1,8 +1,8 @@
 # Bing 每日壁纸 API
 
-这是一个用 PHP 编写的 Bing 每日壁纸项目，既可以展示当天壁纸，也可以作为图片 API 使用。
+这是一个运行在 Cloudflare Workers 上的 Bing 每日壁纸项目，既可以展示当天壁纸，也可以作为图片 API 使用。
 
-项目不需要数据库，上传到支持 PHP 的服务器后即可运行。首页采用明亮的蓝紫色磨砂玻璃风格，并针对电脑和手机做了适配。
+项目不需要传统服务器或数据库：Worker 提供首页和兼容原 PHP 路径的 API，Cloudflare Cron 每天同步壁纸，R2 保存历史横屏与竖屏图片。首页采用明亮的蓝紫色磨砂玻璃风格，并针对电脑和手机做了适配。
 
 - 在线演示：<https://bing-img.wuw.li>
 - GitHub 仓库：<https://github.com/qiailmy/bing-img-api>
@@ -20,15 +20,12 @@
 
 ## 运行环境
 
-部署前请确认服务器具备以下条件：
+- Cloudflare Workers
+- Cloudflare R2
+- Node.js 20 或更高版本
+- Wrangler 4
 
-- PHP 8.0 或更高版本
-- PHP cURL 扩展
-- 可用的 `getimagesize` 和 `getimagesizefromstring` 函数
-- Nginx、OpenResty 或 Apache 等 Web 服务器
-- 服务器能够正常访问 `https://www.bing.com`
-
-本项目不需要 MySQL、MongoDB 等数据库。
+本项目不需要 PHP、Nginx、传统服务器或数据库。仓库根目录中的 PHP 文件仅作为旧实现参考；生产入口由 `src/index.js` 提供。
 
 ## 文件说明
 
@@ -57,51 +54,38 @@ upload_bing.log            # 定时下载日志
 
 ## 部署方法
 
-### 1. 上传项目
-
-将仓库中的文件放到网站根目录，并把 `index.php` 设置为默认首页。
-
-### 2. 检查 PHP 环境
+### 1. 安装依赖并验证
 
 ```bash
-php -v
-php -m | grep -i curl
+npm ci
+npm test
+npm run check
+npx wrangler deploy --dry-run
 ```
 
-PHP 版本应为 8.0 或更高，并且第二条命令应能看到 `curl`。
+### 2. 配置 R2 与域名
 
-### 3. 修改网站域名
+`wrangler.jsonc` 默认绑定 R2 存储桶 `ailmy`，绑定名为 `BING_IMAGES`。部署到其他账户时，请先创建自己的存储桶并修改 `bucket_name`。
 
-项目中的演示域名是 `https://bing-img.wuw.li`。部署到自己的域名时，需要修改以下两个文件：
+正式域名通过 `routes[].custom_domain` 配置。若目标主机名已有 DNS 记录，需要先安全迁移或删除冲突记录，Cloudflare 才能自动建立 Worker Custom Domain。
 
-```php
-// index.php
-$site_url = 'https://你的域名';
+### 3. 部署
 
-// func.php
-$site_url = 'https://你的域名';
+```bash
+npx wrangler deploy
 ```
 
-### 4. 设置目录权限
+当前 Cron 表达式为 `0 17 * * *`，即每天 `17:00 UTC`（北京时间次日 `01:00`）同步当天的横屏与竖屏壁纸。
 
-网站运行用户需要能够读取项目文件。
+### 4. 测试访问
 
-如果要使用首页缓存、每日下载和随机壁纸功能，还需要保证程序能够在项目目录中创建或写入：
-
-- `bing-wallpapers-cache.json`
-- `bing-img/`
-- `upload_bing.log`
-
-请根据服务器环境设置权限，不建议直接将整个目录设为 `777`。
-
-### 5. 测试访问
-
-部署完成后，先打开首页，再测试一个跳转接口和 JSON 接口：
+部署完成后，先打开首页，再测试一个跳转接口、JSON 接口和随机历史图片：
 
 ```text
 https://你的域名/
 https://你的域名/auto_302.php
 https://你的域名/func.php?n=1
+https://你的域名/random.php
 ```
 
 ## 接口说明
@@ -145,46 +129,20 @@ https://你的域名/random.php
 
 `func.php` 不需要 `info=1` 参数。即使带上该参数，程序也不会使用它。
 
-## 每日自动下载
+## 每日自动同步
 
-`upload_bing.php` 会下载当天的两张图片：
+Worker 的 `scheduled` 处理器会下载当天的两张图片到 R2：
 
 ```text
 bing-img/YYYY-MM-DD.jpg         # PC UHD 原图
 bing-img/YYYY-MM-DD-mobile.jpg  # 手机 1080×1920 竖屏图
 ```
 
-如果当天的图片已经存在，脚本会自动跳过，不会重复下载。
-
-### 手动运行
-
-先进入项目目录，再执行：
-
-```bash
-php upload_bing.php
-```
-
-看到两张图片保存成功后，再配置定时任务。
-
-### 设置定时任务
-
-以下示例会在每天 06:00 执行，具体时间以服务器时区为准：
-
-```cron
-0 6 * * * /bin/bash /path/to/upload_bing.sh
-```
-
-`upload_bing.sh` 默认使用 `/usr/bin/php`。如果服务器上的 PHP 不在这个位置，请先执行：
-
-```bash
-command -v php
-```
-
-然后将脚本中的 PHP 路径改成实际结果。
+如果当天的对象已经存在，Worker 会自动跳过，不会重复下载。Cron 配置随 `wrangler.jsonc` 一起部署，无需服务器 crontab。开发时可使用 Wrangler 的 scheduled 测试能力验证处理器。
 
 ### 随机壁纸说明
 
-`random.php` 只会从 `bing-img/` 中选择已经下载成功的图片：
+`random.php` 只会从 R2 的 `bing-img/` 前缀中选择已经下载成功的图片，并由 Worker 直接输出对象：
 
 - 电脑访问时随机返回横屏图
 - 手机访问时随机返回竖屏图
@@ -199,10 +157,12 @@ command -v php
 
 ## 常用检查命令
 
-检查所有 PHP 文件是否存在语法错误：
+检查代码与测试：
 
 ```bash
-find . -maxdepth 1 -name '*.php' -print0 | xargs -0 -n1 php -l
+npm test
+npm run check
+npx wrangler deploy --dry-run
 ```
 
 检查 JSON 接口：
@@ -219,10 +179,10 @@ curl -I 'https://你的域名/auto_302.php'
 
 ## 使用建议
 
-- `auto.php` 会通过你的服务器转发完整图片，会占用服务器流量。访问量较大时，建议优先使用 `auto_302.php`。
-- `upload_bing.php` 只能通过命令行执行，不能从网页触发。
+- `auto.php` 会通过 Worker 转发完整图片；访问量较大时，建议优先使用 `auto_302.php`。
 - `download.php` 只允许下载来自 `www.bing.com` 和 `cn.bing.com` 的 HTTPS 图片。
-- 建议在 Nginx 或 CDN 中设置缓存和访问频率限制，并定期清理日志。
+- R2 历史图片通过 Worker 的 `/bing-img/YYYY-MM-DD.jpg` 路径提供，并设置长期不可变缓存。
+- 建议启用 Workers Observability，并定期查看 Cron 与 R2 写入结果。
 
 ## 版权说明
 
